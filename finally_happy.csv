@@ -1,4 +1,4 @@
-"country","year","income_inequ_top10","happiness_score","ln_gpd_per_cap","healthy_life_exp","generosity","perc_corr","wealth_inequ_top10","unemploymemt_rate","participation_rate","working_poverty_rate","inflation_rate","accum_wealth","savings","EU","OECD","Africa","Asia","Europe","North_America","South_America","Oceania"
+"country","year","income_inequ_top10","happiness_score","ln_gpd_per_cap","healthy_life_exp","generosity","perc_corr","wealth_inequ_top10","unemployment_rate","participation_rate","working_poverty_rate","inflation_rate","accum_wealth","savings","EU","OECD","Africa","Asia","Europe","North_America","South_America","Oceania"
 "Afghanistan",2005,41.94,NA,NA,NA,NA,NA,58.86,7.914,NA,33.732,10.6,9168.8454,NA,0,0,0,1,0,0,0,0
 "Afghanistan",2006,41.94,NA,NA,NA,NA,NA,58.95,7.918,NA,32.346,6.8,12432.9327,NA,0,0,0,1,0,0,0,0
 "Afghanistan",2007,41.94,NA,NA,NA,NA,NA,58.61,7.908,NA,30.519,8.7,16374.6117,NA,0,0,0,1,0,0,0,0
