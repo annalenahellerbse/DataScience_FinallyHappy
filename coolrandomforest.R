@@ -132,24 +132,19 @@ val_dataset_lasso <- val_dataset_lasso %>% select(-Oceania)
 
 ########################## Random forest
 ################################################################################
-# 1. Data Preparation Final v1 el bueno
+# 1. Data Preparation
 ################################################################################
-
-# Remove NAs
-train_dataset_TH <- na.omit(train_dataset_TH)
-test_dataset_TH <- na.omit(test_dataset_TH)
-val_dataset_TH <- na.omit(val_dataset_TH)
 
 
 # Combine train and validation sets for cross-validation
 combined_train <- bind_rows(train_dataset_TH, val_dataset_TH)
 
 # Prepare training data
-X_train <- combined_train %>% select(-income_inequ_top10_ag)
+X_train <- combined_train %>% select(-income_inequ_top10_ag, -country)
 y_train <- combined_train$income_inequ_top10_ag
 
 # Prepare test data
-X_test <- test_dataset_TH %>% select(-income_inequ_top10_ag)
+X_test <- test_dataset_TH %>% select(-income_inequ_top10_ag, -country)
 y_test <- test_dataset_TH$income_inequ_top10_ag
 
 # Combine features and target into one data frame for caret
