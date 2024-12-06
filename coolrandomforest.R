@@ -3,50 +3,37 @@ library(caret)
 library(randomForest)
 library(dplyr)
 library(ggplot2)
+rm(list=ls())
 
-##############################################################
-############ Data prep (colab)
-##############################################################
+
 finally_happy_final <- read.csv('https://raw.githubusercontent.com/annalenahellerbse/DataScience_FinallyHappy/refs/heads/main/transformed_finally_happy.csv')
 
 finally_happy_final <- finally_happy_final[finally_happy_final$year != 2005, ]
 any(finally_happy_final$year == 2005)  #Check: Should return FALSE
 
-
 ################################################################################
-####   Splitting into Training, Validation, and Test Data
+####   Splitting into Training, Validation, and Test Data - Correct one
 ################################################################################
 
 # Step 1: Drop 'EU' and 'OECD' columns
 finally_happy_final <- finally_happy_final %>%
   select(-EU, -OECD)
 
-# Step 2: Normalize continuous variables
-# Identify columns to normalize (non-dummies)
-continuous_vars <- finally_happy_final %>%
-  select(where(is.numeric)) %>%
-  select(-c(year, Africa, Asia, Europe, North_America, South_America, Oceania)) %>%
-  colnames()
-
-# Apply normalization
-finally_happy_normalized <- finally_happy_final
-finally_happy_normalized[continuous_vars] <- scale(finally_happy_final[continuous_vars])
-
-# Step 3: Create a unique list of countries
+# Step 2: Create a unique list of countries
 set.seed(18) # Set seed for reproducibility
-countries <- unique(finally_happy_normalized$country)
+countries <- unique(finally_happy_final$country)
 
-# Step 4: Manually assign Spain and India to the test set
+# Step 3: Manually assign Spain and India to the test set
 test_countries <- c("Spain", "India")
 
-# Step 5: Randomly split the remaining countries
+# Step 4: Randomly split the remaining countries
 remaining_countries <- setdiff(countries, test_countries)
 n_countries <- length(countries)
 
 # Calculate the desired number of test countries
 desired_test_size <- round(n_countries * 0.10)
 additional_test_size <- max(desired_test_size - length(test_countries), 0)
-additional_test_size <- min(additional_test_size, length(remaining_countries))  # Ensure it doesn't exceed available countries
+additional_test_size <- min(additional_test_size, length(remaining_countries))
 
 # Randomly assign additional countries to the test set
 if (additional_test_size > 0) {
@@ -56,19 +43,19 @@ if (additional_test_size > 0) {
 }
 
 # Calculate the validation set size
-val_size <- min(round(n_countries * 0.30), length(remaining_countries))  # Ensure it doesn't exceed available countries
+val_size <- min(round(n_countries * 0.30), length(remaining_countries))
 
 # Randomly assign countries to the validation set
 val_countries <- sample(remaining_countries, size = val_size)
 train_countries <- setdiff(remaining_countries, val_countries)
 
-finally_happy_normalized <- finally_happy_normalized %>%
+finally_happy_final <- finally_happy_final %>%
   mutate(
     split = case_when(
       country %in% test_countries ~ 0,
       country %in% train_countries ~ 1,
       country %in% val_countries ~ 2,
-      TRUE ~ NA_real_  # Assign NA if country is not in any set
+      TRUE ~ NA_real_
     )
   )
 
@@ -76,63 +63,57 @@ finally_happy_normalized <- finally_happy_normalized %>%
 #### Create Training, Validation, and Test Datasets
 ################################################################################
 
-# Create the training dataset (countries with split = 1) and remove the split column
-train_dataset_TH <- finally_happy_normalized %>%
+# Create the training dataset and remove the split column
+train_dataset_TH <- finally_happy_final %>%
   filter(split == 1) %>%
   select(-split)
 
-# Create the validation dataset (countries with split = 2) and remove the split column
-val_dataset_TH <- finally_happy_normalized %>%
+# Create the validation dataset and remove the split column
+val_dataset_TH <- finally_happy_final %>%
   filter(split == 2) %>%
   select(-split)
 
-# Create the test dataset (countries with split = 0) and remove the split column
-test_dataset_TH <- finally_happy_normalized %>%
+# Create the test dataset and remove the split column
+test_dataset_TH <- finally_happy_final %>%
   filter(split == 0) %>%
   select(-split)
 
 ################################################################################
-#### Data preparation
+#### Normalize Continuous Variables
 ################################################################################
 
-# Step 1: Create new datasets to preserve the originals
-train_dataset_lasso <- train_dataset_TH
-test_dataset_lasso <- test_dataset_TH
-val_dataset_lasso <- val_dataset_TH
+# Identify continuous variables
+continuous_vars <- train_dataset_TH %>%
+  select(where(is.numeric)) %>%
+  select(-c(year, Africa, Asia, Europe, North_America, South_America, Oceania)) %>%
+  colnames()
 
-# Step 2: Add year dummies to the training dataset (exclude 2006)
-train_dataset_lasso <- train_dataset_lasso %>%
-  mutate(across(year, as.factor)) %>% # Convert year to factor
-  model.matrix(~ year - 1, .) %>%     # Create year dummies
-  as.data.frame() %>%
-  select(-`year2006`) %>%             # Exclude 2006 dummy
-  bind_cols(train_dataset_lasso %>% select(-year)) # Bind year dummies to the rest of the data
+# Compute mean and standard deviation from the training data
+train_means <- sapply(train_dataset_TH[continuous_vars], mean, na.rm = TRUE)
+train_sds <- sapply(train_dataset_TH[continuous_vars], sd, na.rm = TRUE)
 
-# Step 3: Add year dummies to the test dataset (exclude 2006)
-test_dataset_lasso <- test_dataset_lasso %>%
-  mutate(across(year, as.factor)) %>% # Convert year to factor
-  model.matrix(~ year - 1, .) %>%     # Create year dummies
-  as.data.frame() %>%
-  select(-`year2006`) %>%             # Exclude 2006 dummy
-  bind_cols(test_dataset_lasso %>% select(-year)) # Bind year dummies to the rest of the data
+# Function to scale data using training parameters
+scale_data <- function(data, means, sds) {
+  data_scaled <- data
+  data_scaled[continuous_vars] <- scale(data[continuous_vars], center = means, scale = sds)
+  return(data_scaled)
+}
 
+# Apply scaling to training, validation, and test datasets
+train_dataset_TH <- scale_data(train_dataset_TH, train_means, train_sds)
+val_dataset_TH <- scale_data(val_dataset_TH, train_means, train_sds)
+test_dataset_TH <- scale_data(test_dataset_TH, train_means, train_sds)
 
-val_dataset_lasso <- val_dataset_lasso %>%
-  mutate(across(year, as.factor)) %>% # Convert year to factor
-  model.matrix(~ year - 1, .) %>%     # Create year dummies
-  as.data.frame() %>% 
-  select(-`year2006`) %>%             # Exclude 2006 dummy
-  bind_cols(val_dataset_lasso %>% select(-year)) # Bind year dummies to the rest of the data
-
-# Step 4: Remove Oceania dummy from both training and test datasets
-train_dataset_lasso <- train_dataset_lasso %>% select(-Oceania)
-test_dataset_lasso <- test_dataset_lasso %>% select(-Oceania)
-val_dataset_lasso <- val_dataset_lasso %>% select(-Oceania)
-
-
-########################## Random forest
 ################################################################################
-# 1. Data Preparation
+#### Check Splits
+################################################################################
+
+cat("Training set size:", nrow(train_dataset_TH), "\n")
+cat("Validation set size:", nrow(val_dataset_TH), "\n")
+cat("Test set size:", nrow(test_dataset_TH), "\n")
+
+################################################################################
+# 1. Data Preparation Final v1 el bueno
 ################################################################################
 
 
@@ -140,11 +121,11 @@ val_dataset_lasso <- val_dataset_lasso %>% select(-Oceania)
 combined_train <- bind_rows(train_dataset_TH, val_dataset_TH)
 
 # Prepare training data
-X_train <- combined_train %>% select(-income_inequ_top10_ag, -country)
+X_train <- combined_train %>% select(-income_inequ_top10_ag)
 y_train <- combined_train$income_inequ_top10_ag
 
 # Prepare test data
-X_test <- test_dataset_TH %>% select(-income_inequ_top10_ag, -country)
+X_test <- test_dataset_TH %>% select(-income_inequ_top10_ag)
 y_test <- test_dataset_TH$income_inequ_top10_ag
 
 # Combine features and target into one data frame for caret
@@ -173,10 +154,10 @@ tune_grid <- expand.grid(
 # Train the model using caret's train() function with cross-validation
 set.seed(18)
 rf_model <- train(
-  income_inequ_top10_ag ~ .,
-  data = training_data,
-  method = "rf",
-  trControl = train_control,
+  income_inequ_top10_ag ~ ., 
+  data = training_data, 
+  method = "rf", 
+  trControl = train_control, 
   tuneGrid = tune_grid,
   ntree = 500,
   importance = TRUE
@@ -204,10 +185,10 @@ results <- data.frame()
 for (ntree_val in ntree_values) {
   set.seed(18)
   rf_model <- train(
-    income_inequ_top10_ag ~ .,
-    data = training_data,
-    method = "rf",
-    trControl = train_control,
+    income_inequ_top10_ag ~ ., 
+    data = training_data, 
+    method = "rf", 
+    trControl = train_control, 
     tuneGrid = data.frame(mtry = optimal_mtry),
     ntree = ntree_val,
     importance = TRUE
